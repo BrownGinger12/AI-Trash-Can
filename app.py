@@ -1,58 +1,121 @@
 import cv2
+import threading
+import serial
+import time
+import sys
+
 from OpenAI.OpenAI_handler import openAi
 from Firebase.Firebase_Handler import *
 
-cap = cv2.VideoCapture(0)
+rfid_value = ""
+is_scan = False
+lock = threading.Lock()
+running = True
 
-rfid = "12345"
+def read_rfid(ser):
+    global rfid_value, running, is_scan
+    time.sleep(2)
 
-if not cap.isOpened():
-    print("Error: Could not open webcam.")
-    exit()
-
-while True:
-    ret, frame = cap.read()
-
-    if not ret:
-        print("Error: Failed to capture frame.")
-        break
-
-    
-    cv2.imshow("Webcam Feed", frame)
-
-    if cv2.waitKey(1) & 0xFF == ord('s'):
-        if rfid:
-            response = openAi().identify_image(frame)
-            if response:
-
-                if response == "1":
-                    points_to_add = 3
-                elif response == "2":
-                    points_to_add = 5
+    try:
+        while running:
+            if ser.in_waiting > 0:
+                data = ser.readline().decode('utf-8').strip()
+                if data == "scan":
+                    with lock:
+                        is_scan = True
+                    print("Garbage detected!")
                 else:
-                    points_to_add = 0
+                    with lock:
+                        rfid_value = data
+                    print(f"RFID Read: {rfid_value}")
+    except Exception as e:
+        print(f"RFID Thread Error: {e}")
+    finally:
+        print("RFID thread stopped.")
 
-                print(response)
+def process_camera(ser):
+    global rfid_value, running, is_scan
+    cap = cv2.VideoCapture(0)
 
-                if points_to_add != 0:
-                    db_resp = add_points_to_user(rfid, points_to_add)
+    if not cap.isOpened():
+        print("Error: Could not open webcam.")
+        return
 
-                    if db_resp["statusCode"] == 200:
-                        print("Points added!")
+    try:
+        while running:
+            ret, frame = cap.read()
+            if not ret:
+                print("Error: Failed to capture frame.")
+                break
+
+            cv2.imshow("Webcam Feed", frame)
+            key = cv2.waitKey(1) & 0xFF
+
+            with lock:
+                scan_garbage = is_scan
+
+            if scan_garbage:
+                with lock:
+                    current_rfid = rfid_value
+
+                if current_rfid:
+                    response = openAi().identify_image(frame)
+                    if response:
+                        if response == "1":
+                            points = 3
+                        elif response == "2":
+                            points = 5
+                        else:
+                            points = 0
+
+                        print(f"AI Response: {response}")
+
+                        if points > 0:
+                            db_resp = add_points_to_user(current_rfid, points)
+                            if db_resp["statusCode"] == 200:
+                                print("Points added!")
+
+                                ser.write((response + '\n').encode())
+
+                            else:
+                                print(f"DB Error: {db_resp['body']}")
+                        else:
+                            print("Garbage cannot be identified")
                     else:
-                        print("An error occured")
+                        print("Garbage cannot be identified")
                 else:
-                    print("Garbage cannot be identified")
+                    print("No RFID detected")
 
-            else:
-                print("Garbage cannot be identified")
-        
-        else:
-            print("rfid is empty")
+                with lock:
+                    rfid_value = ""
+                    is_scan = False
 
 
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+            elif key == ord('q'):
+                running = False
+                break
 
-cap.release()
-cv2.destroyAllWindows()
+    except Exception as e:
+        print(f"Camera Thread Error: {e}")
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
+        print("Camera thread stopped.")
+
+if __name__ == "__main__":
+    try:
+        ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
+
+        rfid_thread = threading.Thread(target=read_rfid, args=(ser,))
+        camera_thread = threading.Thread(target=process_camera, args=(ser,))
+
+        rfid_thread.start()
+        camera_thread.start()
+
+        rfid_thread.join()
+        camera_thread.join()
+
+    except KeyboardInterrupt:
+        running = False
+        print("\nProgram interrupted. Exiting...")
+        sys.exit()
