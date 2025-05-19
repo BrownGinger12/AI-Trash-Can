@@ -42,7 +42,7 @@ def reward_user(rfid_value, points=0, reward_type="", reward_name=""):
     response = get_user_points(rfid_value)
     if response["statusCode"] == 200:
         userData = response["userData"]
-        if userData["points"] > abs(points):
+        if userData["rewardPoints"] > abs(points):
             db_resp = add_points_to_user(rfid_value, points)
             if db_resp["statusCode"] == 200:
                 print("Points added!")

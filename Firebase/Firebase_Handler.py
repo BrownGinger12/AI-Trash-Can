@@ -17,9 +17,9 @@ def add_points_to_user(user_id: str, points_to_add: int):
         current_points = ref.get()
 
         if current_points:
-            data = { "points": current_points["points"] + points_to_add}
+            data = { "rewardPoints": current_points["rewardPoints"] + points_to_add}
         else:
-            data = { "points": points_to_add}
+            data = { "rewardPoints": points_to_add}
 
         response = ref.update(data)
 
