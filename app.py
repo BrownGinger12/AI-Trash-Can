@@ -138,6 +138,7 @@ def create_fullscreen_camera():
     global root, video_label, output_text, trash1_label, trash2_label
     root = tk.Tk()
     root.attributes('-fullscreen', True)
+    root.overrideredirect(True)  # Remove window decorations
     root.configure(background='black')
 
     # Set window size for 5-inch display (800x480)
@@ -147,16 +148,16 @@ def create_fullscreen_camera():
     main_frame = tk.Frame(root, bg='black')
     main_frame.pack(expand=True, fill='both')
 
-    # Create video label with border
-    video_frame = tk.Frame(main_frame, bg='white', bd=1, relief='solid')
-    video_frame.pack(expand=True, padx=10, pady=10)
+    # Create video label without border
+    video_frame = tk.Frame(main_frame, bg='black')
+    video_frame.pack(expand=True, padx=5, pady=5)
     
     video_label = Label(video_frame, bg='black')
-    video_label.pack(expand=True, padx=1, pady=1)
+    video_label.pack(expand=True)
 
     # Create trash fullness frame
     trash_frame = tk.Frame(main_frame, bg='black')
-    trash_frame.pack(fill='x', padx=10, pady=2)
+    trash_frame.pack(fill='x', padx=5, pady=2)
 
     # Create labels for trash fullness
     trash1_label = Label(trash_frame, text="Trash Bin 1: 0%", font=("Arial", 12),
@@ -169,14 +170,14 @@ def create_fullscreen_camera():
 
     # Create output text area with scrollbar
     output_frame = tk.Frame(main_frame, bg='black')
-    output_frame.pack(fill='x', padx=10, pady=2)
+    output_frame.pack(fill='x', padx=5, pady=2)
 
     # Scrollbar for output text
     scrollbar = Scrollbar(output_frame)
     scrollbar.pack(side='right', fill='y')
 
     # Output text area
-    output_text = Text(output_frame, height=4, width=50, bg='black', fg='white',
+    output_text = Text(output_frame, height=3, width=50, bg='black', fg='white',
                       font=('Consolas', 9), yscrollcommand=scrollbar.set)
     output_text.pack(side='left', fill='x', expand=True)
     scrollbar.config(command=output_text.yview)
@@ -189,7 +190,7 @@ def create_fullscreen_camera():
     close_button = Button(status_frame, text="Exit", font=("Arial", 10),
                          command=lambda: [setattr(sys.modules[__name__], 'running', False), root.destroy()],
                          bg='red', fg='white', padx=5, pady=2)
-    close_button.pack(side='right', padx=10)
+    close_button.pack(side='right', padx=5)
 
     # Add key binding to exit fullscreen
     root.bind("<Escape>", lambda e: [setattr(sys.modules[__name__], 'running', False), root.destroy()])
@@ -211,8 +212,8 @@ def process_camera(ser):
         return
 
     # Set camera resolution to match display
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 480)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 270)
 
     try:
         while running:
@@ -222,7 +223,7 @@ def process_camera(ser):
                 break
 
             # Resize frame to fit display
-            frame = cv2.resize(frame, (640, 360))
+            frame = cv2.resize(frame, (480, 270))
 
             # Update the frame in the main thread
             root.after(0, update_camera_frame, frame)
