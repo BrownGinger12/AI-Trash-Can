@@ -140,53 +140,56 @@ def create_fullscreen_camera():
     root.attributes('-fullscreen', True)
     root.configure(background='black')
 
+    # Set window size for 5-inch display (800x480)
+    root.geometry("800x480")
+
     # Create main frame
     main_frame = tk.Frame(root, bg='black')
     main_frame.pack(expand=True, fill='both')
 
     # Create video label with border
-    video_frame = tk.Frame(main_frame, bg='white', bd=2, relief='solid')
-    video_frame.pack(expand=True, padx=20, pady=20)
+    video_frame = tk.Frame(main_frame, bg='white', bd=1, relief='solid')
+    video_frame.pack(expand=True, padx=10, pady=10)
     
     video_label = Label(video_frame, bg='black')
-    video_label.pack(expand=True, padx=2, pady=2)
+    video_label.pack(expand=True, padx=1, pady=1)
 
     # Create trash fullness frame
     trash_frame = tk.Frame(main_frame, bg='black')
-    trash_frame.pack(fill='x', padx=20, pady=5)
+    trash_frame.pack(fill='x', padx=10, pady=2)
 
     # Create labels for trash fullness
-    trash1_label = Label(trash_frame, text="Trash Bin 1: 0%", font=("Arial", 14),
-                        fg="white", bg="black", padx=10)
+    trash1_label = Label(trash_frame, text="Trash Bin 1: 0%", font=("Arial", 12),
+                        fg="white", bg="black", padx=5)
     trash1_label.pack(side='left', expand=True)
 
-    trash2_label = Label(trash_frame, text="Trash Bin 2: 0%", font=("Arial", 14),
-                        fg="white", bg="black", padx=10)
+    trash2_label = Label(trash_frame, text="Trash Bin 2: 0%", font=("Arial", 12),
+                        fg="white", bg="black", padx=5)
     trash2_label.pack(side='right', expand=True)
 
     # Create output text area with scrollbar
     output_frame = tk.Frame(main_frame, bg='black')
-    output_frame.pack(fill='x', padx=20, pady=10)
+    output_frame.pack(fill='x', padx=10, pady=2)
 
     # Scrollbar for output text
     scrollbar = Scrollbar(output_frame)
     scrollbar.pack(side='right', fill='y')
 
     # Output text area
-    output_text = Text(output_frame, height=6, width=50, bg='black', fg='white',
-                      font=('Consolas', 10), yscrollcommand=scrollbar.set)
+    output_text = Text(output_frame, height=4, width=50, bg='black', fg='white',
+                      font=('Consolas', 9), yscrollcommand=scrollbar.set)
     output_text.pack(side='left', fill='x', expand=True)
     scrollbar.config(command=output_text.yview)
 
     # Create status frame at the bottom
     status_frame = tk.Frame(main_frame, bg='black')
-    status_frame.pack(fill='x', pady=10)
+    status_frame.pack(fill='x', pady=2)
 
     # Close button
-    close_button = Button(status_frame, text="Exit", font=("Arial", 12),
+    close_button = Button(status_frame, text="Exit", font=("Arial", 10),
                          command=lambda: [setattr(sys.modules[__name__], 'running', False), root.destroy()],
-                         bg='red', fg='white', padx=10, pady=5)
-    close_button.pack(side='right', padx=20)
+                         bg='red', fg='white', padx=5, pady=2)
+    close_button.pack(side='right', padx=10)
 
     # Add key binding to exit fullscreen
     root.bind("<Escape>", lambda e: [setattr(sys.modules[__name__], 'running', False), root.destroy()])
@@ -207,12 +210,19 @@ def process_camera(ser):
         print("Error: Could not open webcam.")
         return
 
+    # Set camera resolution to match display
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
+
     try:
         while running:
             ret, frame = cap.read()
             if not ret:
                 print("Error: Failed to capture frame.")
                 break
+
+            # Resize frame to fit display
+            frame = cv2.resize(frame, (640, 360))
 
             # Update the frame in the main thread
             root.after(0, update_camera_frame, frame)
@@ -267,7 +277,7 @@ def create_gui():
 
 if __name__ == "__main__":
     try:
-        ser = serial.Serial('COM8', 9600, timeout=1)
+        ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
         create_fullscreen_camera()
 
         # Start the camera and RFID threads
