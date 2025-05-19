@@ -222,6 +222,9 @@ def process_camera(ser):
                 print("Error: Failed to capture frame.")
                 break
 
+            # Rotate frame 180 degrees by flipping both horizontally and vertically
+            frame = cv2.flip(frame, -1)  # -1 means flip both horizontally and vertically
+
             # Resize frame to fit display
             frame = cv2.resize(frame, (480, 270))
 
