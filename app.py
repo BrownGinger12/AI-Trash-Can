@@ -213,7 +213,7 @@ def update_camera_frame(frame):
         video_label.image = frame_image  # Keep a reference!
 
 def process_camera(ser):
-    global rfid_value, running, is_scan
+    global rfid_value, running, is_scan, trash1_capacity, trash2_capacity
     cap = cv2.VideoCapture(0)
 
     if not cap.isOpened():
@@ -252,20 +252,30 @@ def process_camera(ser):
                     if response:
                         if response == "1":
                             points = 3
+                            if trash1_capacity >= 100:
+                                print("Trash Bin 1 is full!")
+                                ser.write("full1\n".encode())
+                                response = None
                         elif response == "2":
                             points = 5
+                            if trash2_capacity >= 100:
+                                print("Trash Bin 2 is full!")
+                                ser.write("full2\n".encode())
+                                response = None
                         else:
                             points = 0
 
                         print(f"AI Response: {response}")
 
-                        if points > 0:
+                        if response and points > 0:
                             db_resp = add_points_to_user(current_rfid, points)
                             if db_resp["statusCode"] == 200:
                                 print("Points added!")
                                 ser.write((response + '\n').encode())
                             else:
                                 print(f"DB Error: {db_resp['body']}")
+                        elif not response:
+                            print("Selected trash bin is full")
                         else:
                             print("Garbage cannot be identified")
                     else:
