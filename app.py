@@ -24,6 +24,8 @@ output_text = None
 frame_image = None
 trash1_label = None
 trash2_label = None
+trash1_capacity = 0
+trash2_capacity = 0
 
 # Redirect print to label   
 class PrintRedirect(io.StringIO):
@@ -42,10 +44,10 @@ def reward_user(rfid_value, points=0, reward_type="", reward_name=""):
     response = get_user_points(rfid_value)
     if response["statusCode"] == 200:
         userData = response["userData"]
-        if userData["rewardPoints"] > abs(points):
+        if userData["rewardPoints"] >= abs(points):
             db_resp = add_points_to_user(rfid_value, points)
             if db_resp["statusCode"] == 200:
-                print("Points added!")
+                print("Points deducted!")
 
                 if "contactNo" in userData:
                     contactNo = userData["contactNo"]
@@ -78,7 +80,7 @@ def reward_user(rfid_value, points=0, reward_type="", reward_name=""):
 
 
 def read_serial(ser):
-    global rfid_value, running, is_scan, trash1_label, trash2_label
+    global rfid_value, running, is_scan, trash1_label, trash2_label, trash1_capacity, trash2_capacity
     time.sleep(2)
 
     try:
@@ -87,16 +89,23 @@ def read_serial(ser):
                 data = ser.readline().decode('utf-8').strip()
                 if data.startswith("trash1:"):
                     fullness = data.split(":")[1]
+                    trash1_capacity = int(fullness.replace("%", ""))
                     if trash1_label:
                         root.after(0, trash1_label.config, {'text': f"Trash Bin 1: {fullness}"})
                 elif data.startswith("trash2:"):
                     fullness = data.split(":")[1]
+                    trash2_capacity = int(fullness.replace("%", ""))
                     if trash2_label:
                         root.after(0, trash2_label.config, {'text': f"Trash Bin 2: {fullness}"})
                 elif data == "scan":
-                    with lock:
-                        is_scan = True
-                    print("Garbage detected!")
+                    # Check if either trash bin is at 100% capacity
+                    if trash1_capacity >= 100 or trash2_capacity >= 100:
+                        print("Cannot scan: One or more trash bins are full!")
+                        ser.write("full\n".encode())
+                    else:
+                        with lock:
+                            is_scan = True
+                        print("Garbage detected!")
                 elif data == "reward1":
                     with lock:
                         current_rfid = rfid_value
