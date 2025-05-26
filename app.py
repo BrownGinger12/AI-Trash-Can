@@ -187,6 +187,10 @@ def read_serial(ser):
                         if rfid_value == "":
                             rfid_value = data
                             print(f"RFID Read: {rfid_value} (logged in)")
+                        elif rfid_value == data:
+                            # Same RFID presented again: treat as logout
+                            print(f"User {rfid_value} logged out.")
+                            rfid_value = ""
                         else:
                             print(f"RFID {rfid_value} already logged in. Please logout first.")
                 
