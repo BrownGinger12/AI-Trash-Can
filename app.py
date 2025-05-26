@@ -213,54 +213,44 @@ def create_fullscreen_camera():
     main_frame = tk.Frame(root, bg='black')
     main_frame.pack(expand=True, fill='both')
 
-    # Create video label without border
+    # --- BUTTONS AT THE TOP ---
+    top_button_frame = tk.Frame(main_frame, bg='black')
+    top_button_frame.pack(fill='x', pady=2, side='top')
+
+    scan_button = Button(top_button_frame, text="Scan", font=("Arial", 12, "bold"), bg='green', fg='white', padx=10, pady=4,
+                        command=on_scan_button)
+    scan_button.pack(side='left', padx=5)
+
+    close_button = Button(top_button_frame, text="Exit", font=("Arial", 10),
+                         command=lambda: [setattr(sys.modules[__name__], 'running', False), root.destroy()],
+                         bg='red', fg='white', padx=5, pady=2)
+    close_button.pack(side='right', padx=5)
+
+    # --- VIDEO FRAME ---
     video_frame = tk.Frame(main_frame, bg='black')
     video_frame.pack(expand=True, padx=5, pady=5)
-    
     video_label = Label(video_frame, bg='black')
     video_label.pack(expand=True)
 
-    # Create trash fullness frame
+    # --- TRASH FULLNESS FRAME ---
     trash_frame = tk.Frame(main_frame, bg='black')
     trash_frame.pack(fill='x', padx=5, pady=2)
-
-    # Create labels for trash fullness
     trash1_label = Label(trash_frame, text="Trash Bin 1: 0%", font=("Arial", 12),
                         fg="white", bg="black", padx=5)
     trash1_label.pack(side='left', expand=True)
-
     trash2_label = Label(trash_frame, text="Trash Bin 2: 0%", font=("Arial", 12),
                         fg="white", bg="black", padx=5)
     trash2_label.pack(side='right', expand=True)
 
-    # Create output text area with scrollbar
+    # --- OUTPUT TEXT AREA ---
     output_frame = tk.Frame(main_frame, bg='black')
     output_frame.pack(fill='x', padx=5, pady=2)
-
-    # Scrollbar for output text
     scrollbar = Scrollbar(output_frame)
     scrollbar.pack(side='right', fill='y')
-
-    # Output text area
     output_text = Text(output_frame, height=3, width=50, bg='black', fg='white',
                       font=('Consolas', 9), yscrollcommand=scrollbar.set)
     output_text.pack(side='left', fill='x', expand=True)
     scrollbar.config(command=output_text.yview)
-
-    # Create status frame at the bottom
-    status_frame = tk.Frame(main_frame, bg='black')
-    status_frame.pack(fill='x', pady=2)
-
-    # Add Scan button
-    scan_button = Button(status_frame, text="Scan", font=("Arial", 12, "bold"), bg='green', fg='white', padx=10, pady=4,
-                        command=on_scan_button)
-    scan_button.pack(side='left', padx=5)
-
-    # Close button
-    close_button = Button(status_frame, text="Exit", font=("Arial", 10),
-                         command=lambda: [setattr(sys.modules[__name__], 'running', False), root.destroy()],
-                         bg='red', fg='white', padx=5, pady=2)
-    close_button.pack(side='right', padx=5)
 
     # Add key binding to exit fullscreen
     root.bind("<Escape>", lambda e: [setattr(sys.modules[__name__], 'running', False), root.destroy()])
