@@ -332,7 +332,6 @@ def process_camera(ser):
                             last_frame = frame
                         time.sleep(0.03)
 
-                    # After 3 seconds, stop updating camera and process the last frame
                     response = openAi().identify_image(last_frame)
                     if response:
                         if response == "1":
@@ -348,27 +347,35 @@ def process_camera(ser):
                         print(f"AI Response: {response}")
 
                         if response and points > 0 and bin_num:
-                            # --- PAUSE ultrasonic updates for this bin ---
+                            # --- PAUSE ultrasonic 1s before open, store value ---
                             if bin_num == 1:
                                 pause_trash1_ultrasonic = True
                             else:
                                 pause_trash2_ultrasonic = True
 
-                            # Wait 1 second before opening servo (freeze ultrasonic)
                             time.sleep(1)
+                            if bin_num == 1:
+                                before_open = trash1_capacity
+                            else:
+                                before_open = trash2_capacity
 
-                            # Open servo after scan/freeze
+                            # --- RESUME ultrasonic, open servo, store value 1s after open ---
+                            if bin_num == 1:
+                                pause_trash1_ultrasonic = False
+                            else:
+                                pause_trash2_ultrasonic = False
+
                             try:
                                 ser.write((str(response) + '\n').encode())
                                 print(f"Servo triggered for Bin {bin_num}")
                             except Exception as e:
                                 print(f"Servo error: {e}")
 
-                            # Store initial fullness for this bin
+                            time.sleep(1)
                             if bin_num == 1:
-                                initial_capacity = trash1_capacity
+                                after_open = trash1_capacity
                             else:
-                                initial_capacity = trash2_capacity
+                                after_open = trash2_capacity
 
                             # Prompt user to throw trash
                             print("Please throw your trash now.")
@@ -376,33 +383,40 @@ def process_camera(ser):
                                 output_text.after(0, lambda: output_text.insert(tk.END, "\nPlease throw your trash now.\n"))
                                 output_text.after(0, output_text.see, tk.END)
 
-                            # Wait for user to throw trash (servo open), then unpause ultrasonic 0.5s before closing
-                            time.sleep(1.5)  # 2s total open time, so 0.5s left
+                            # Wait for user to throw (total open time minus 2s already used)
+                            time.sleep(0.5)  # Example: open total 2.5s before close
 
-                            # --- UNPAUSE ultrasonic updates for this bin ---
+                            # --- PAUSE ultrasonic 1s before close, store value ---
+                            if bin_num == 1:
+                                pause_trash1_ultrasonic = True
+                            else:
+                                pause_trash2_ultrasonic = True
+
+                            time.sleep(1)
+                            if bin_num == 1:
+                                before_close = trash1_capacity
+                            else:
+                                before_close = trash2_capacity
+
+                            # --- RESUME ultrasonic, close servo, store value 1s after close ---
                             if bin_num == 1:
                                 pause_trash1_ultrasonic = False
                             else:
                                 pause_trash2_ultrasonic = False
 
-                            time.sleep(0.5)  # Remaining 0.5s before closing
-
-                            # Close servo after waiting (send close command, e.g., "close\n")
                             try:
                                 ser.write(b"close\n")
                             except Exception as e:
                                 print(f"Servo close error: {e}")
 
-                            # Wait 2 seconds after servo closes before checking ultrasonic
-                            time.sleep(2)
-
-                            # Check if bin capacity increased
+                            time.sleep(1)
                             if bin_num == 1:
-                                new_capacity = trash1_capacity
+                                after_close = trash1_capacity
                             else:
-                                new_capacity = trash2_capacity
+                                after_close = trash2_capacity
 
-                            if new_capacity > initial_capacity:
+                            # --- Compare before_close and after_close ---
+                            if after_close > before_close:
                                 print(f"Throw detected in Bin {bin_num}. Adding {points} points.")
                                 db_resp = add_points_to_user(current_rfid, points)
                                 if db_resp["statusCode"] == 200:
