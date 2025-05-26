@@ -17,7 +17,7 @@ is_scan = False
 lock = threading.Lock()
 running = True
 
-# Global variables for Tkinter UI
+# Global variables for Tkinter UI.
 root = None
 video_label = None
 output_text = None
