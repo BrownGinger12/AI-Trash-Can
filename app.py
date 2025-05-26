@@ -27,6 +27,11 @@ trash2_label = None
 trash1_capacity = 0
 trash2_capacity = 0
 
+# Add these globals at the top (after other globals)
+pending_trash_action = None  # {'rfid': ..., 'trash_type': ..., 'points': ..., 'bin': ...}
+last_trash1_capacity = 0
+last_trash2_capacity = 0
+
 # Redirect print to label   
 class PrintRedirect(io.StringIO):
     def write(self, s):
@@ -81,6 +86,7 @@ def reward_user(rfid_value, points=0, reward_type="", reward_name=""):
 
 def read_serial(ser):
     global rfid_value, running, is_scan, trash1_label, trash2_label, trash1_capacity, trash2_capacity
+    global last_trash1_capacity, last_trash2_capacity, pending_trash_action
     time.sleep(2)
 
     try:
@@ -92,11 +98,49 @@ def read_serial(ser):
                     trash1_capacity = int(fullness.replace("%", ""))
                     if trash1_label:
                         root.after(0, trash1_label.config, {'text': f"Trash Bin 1: {fullness}"})
+                    # Detect throw for bin 1
+                    if pending_trash_action and pending_trash_action['bin'] == 1 and trash1_capacity > last_trash1_capacity:
+                        # Add points and trigger servo
+                        reward_points = pending_trash_action['points']
+                        rfid = pending_trash_action['rfid']
+                        trash_type = pending_trash_action['trash_type']
+                        print(f"Throw detected in Bin 1. Adding {reward_points} points.")
+                        db_resp = add_points_to_user(rfid, reward_points)
+                        if db_resp["statusCode"] == 200:
+                            print("Points added!")
+                            ser.write((str(trash_type) + '\n').encode())  # Open servo
+                        else:
+                            print(f"DB Error: {db_resp['body']}")
+                        pending_trash_action = None
+                    last_trash1_capacity = trash1_capacity
                 elif data.startswith("trash2:"):
                     fullness = data.split(":")[1]
                     trash2_capacity = int(fullness.replace("%", ""))
                     if trash2_label:
                         root.after(0, trash2_label.config, {'text': f"Trash Bin 2: {fullness}"})
+                    # Detect throw for bin 2
+                    if pending_trash_action and pending_trash_action['bin'] == 2 and trash2_capacity > last_trash2_capacity:
+                        reward_points = pending_trash_action['points']
+                        rfid = pending_trash_action['rfid']
+                        trash_type = pending_trash_action['trash_type']
+                        print(f"Throw detected in Bin 2. Adding {reward_points} points.")
+                        db_resp = add_points_to_user(rfid, reward_points)
+                        if db_resp["statusCode"] == 200:
+                            print("Points added!")
+                            ser.write((str(trash_type) + '\n').encode())  # Open servo
+                        else:
+                            print(f"DB Error: {db_resp['body']}")
+                        pending_trash_action = None
+                    last_trash2_capacity = trash2_capacity
+                elif data == "scan":
+                    # Check if either trash bin is at 100% capacity
+                    if trash1_capacity >= 100 or trash2_capacity >= 100:
+                        print("Cannot scan: One or more trash bins are full!")
+                        ser.write("full\n".encode())
+                    else:
+                        with lock:
+                            is_scan = True
+                        print("Garbage detected!")
                 elif data == "reward1":
                     with lock:
                         current_rfid = rfid_value
@@ -128,13 +172,6 @@ def read_serial(ser):
                     with lock:
                         rfid_value = data
                     print(f"RFID Read: {rfid_value}")
-                    if trash1_capacity >= 100 or trash2_capacity >= 100:
-                        print("Cannot scan: One or more trash bins are full!")
-                        ser.write("full\n".encode())
-                    else:
-                        with lock:
-                            is_scan = True
-                        print("Garbage detected!")
                 
     except Exception as e:
         print(f"RFID Thread Error: {e}")
@@ -142,7 +179,7 @@ def read_serial(ser):
         print("RFID thread stopped.")
 
 def create_fullscreen_camera():
-    global root, video_label, output_text, trash1_label, trash2_label
+    global root, video_label, output_text, trash1_label, trash2_label, scan_button
     root = tk.Tk()
     root.attributes('-fullscreen', True)
     root.overrideredirect(True)  # Remove window decorations
@@ -193,6 +230,11 @@ def create_fullscreen_camera():
     status_frame = tk.Frame(main_frame, bg='black')
     status_frame.pack(fill='x', pady=2)
 
+    # Add Scan button
+    scan_button = Button(status_frame, text="Scan", font=("Arial", 12, "bold"), bg='green', fg='white', padx=10, pady=4,
+                        command=on_scan_button)
+    scan_button.pack(side='left', padx=5)
+
     # Close button
     close_button = Button(status_frame, text="Exit", font=("Arial", 10),
                          command=lambda: [setattr(sys.modules[__name__], 'running', False), root.destroy()],
@@ -211,7 +253,7 @@ def update_camera_frame(frame):
         video_label.image = frame_image  # Keep a reference!
 
 def process_camera(ser):
-    global rfid_value, running, is_scan, trash1_capacity, trash2_capacity
+    global rfid_value, running, is_scan, trash1_capacity, trash2_capacity, pending_trash_action, scan_button
     cap = cv2.VideoCapture(0)
 
     if not cap.isOpened():
@@ -250,28 +292,25 @@ def process_camera(ser):
                     if response:
                         if response == "1":
                             points = 3
-                            if trash1_capacity >= 100:
-                                print("Trash Bin 1 is full!")
-                                ser.write("full1\n".encode())
-                                response = None
+                            bin_num = 1
                         elif response == "2":
                             points = 5
-                            if trash2_capacity >= 100:
-                                print("Trash Bin 2 is full!")
-                                ser.write("full2\n".encode())
-                                response = None
+                            bin_num = 2
                         else:
                             points = 0
+                            bin_num = None
 
                         print(f"AI Response: {response}")
 
-                        if response and points > 0:
-                            db_resp = add_points_to_user(current_rfid, points)
-                            if db_resp["statusCode"] == 200:
-                                print("Points added!")
-                                ser.write((response + '\n').encode())
-                            else:
-                                print(f"DB Error: {db_resp['body']}")
+                        if response and points > 0 and bin_num:
+                            # Store pending action, do NOT add points yet
+                            pending_trash_action = {
+                                'rfid': current_rfid,
+                                'trash_type': response,
+                                'points': points,
+                                'bin': bin_num
+                            }
+                            print(f"Waiting for throw in Bin {bin_num}...")
                         elif not response:
                             print("Selected trash bin is full")
                         else:
@@ -282,8 +321,9 @@ def process_camera(ser):
                     print("No RFID detected")
 
                 with lock:
-                    rfid_value = ""
                     is_scan = False
+                if scan_button:
+                    scan_button.config(state='normal')
 
             time.sleep(0.03)  # ~30 FPS
 
@@ -296,12 +336,19 @@ def process_camera(ser):
 def create_gui():
     create_fullscreen_camera()
 
+def on_scan_button():
+    global is_scan, scan_button
+    with lock:
+        is_scan = True
+    if scan_button:
+        scan_button.config(state='disabled')
+
 if __name__ == "__main__":
     try:
         ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
         create_fullscreen_camera()
 
-        # Start the camera and RFID threads 1
+        # Start the camera and RFID threads
         rfid_thread = threading.Thread(target=read_serial, args=(ser,))
         camera_thread = threading.Thread(target=process_camera, args=(ser,))
 
