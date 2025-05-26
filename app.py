@@ -111,6 +111,7 @@ def read_serial(ser):
                             ser.write((str(trash_type) + '\n').encode())  # Open servo
                         else:
                             print(f"DB Error: {db_resp['body']}")
+                            show_db_error(db_resp['body'])
                         pending_trash_action = None
                     last_trash1_capacity = trash1_capacity
                 elif data.startswith("trash2:"):
@@ -130,6 +131,7 @@ def read_serial(ser):
                             ser.write((str(trash_type) + '\n').encode())  # Open servo
                         else:
                             print(f"DB Error: {db_resp['body']}")
+                            show_db_error(db_resp['body'])
                         pending_trash_action = None
                     last_trash2_capacity = trash2_capacity
                 elif data == "scan":
@@ -349,6 +351,11 @@ def on_scan_button():
         is_scan = True
     if scan_button:
         scan_button.config(state='disabled')
+
+def show_db_error(msg):
+    if output_text:
+        output_text.after(0, lambda: output_text.insert(tk.END, f"\nDB Error: {msg}\n"))
+        output_text.after(0, output_text.see, tk.END)
 
 if __name__ == "__main__":
     try:
