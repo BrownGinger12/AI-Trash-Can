@@ -303,7 +303,7 @@ if __name__ == "__main__":
         ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
         create_fullscreen_camera()
 
-        # Start the camera and RFID threads
+        # Start the camera and RFID threads 1
         rfid_thread = threading.Thread(target=read_serial, args=(ser,))
         camera_thread = threading.Thread(target=process_camera, args=(ser,))
 
