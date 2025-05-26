@@ -93,7 +93,7 @@ def reward_user(rfid_value, points=0, reward_type="", reward_name=""):
         else:
             print("Not enough points to redeem the reward.")        
 
-def apply_hysteresis_filter(new_value, history, stable_value, bin_name="", hysteresis_threshold=15, max_jump=25, window_size=5):
+def apply_hysteresis_filter(new_value, history, stable_value, bin_name="", hysteresis_threshold=5, max_jump=15, window_size=3):
     """
     Apply hysteresis filtering to ultrasonic readings:
     - Prevents rapid fluctuations by requiring significant change to update
@@ -141,7 +141,7 @@ def read_serial(ser):
                             # Apply hysteresis filter
                             trash1_stable_value, trash1_history = apply_hysteresis_filter(
                                 raw_capacity, trash1_history, trash1_stable_value, "Trash1",
-                                hysteresis_threshold=12, max_jump=20, window_size=4
+                                hysteresis_threshold=4, max_jump=12, window_size=3
                             )
                             
                             trash1_capacity = trash1_stable_value
@@ -159,7 +159,7 @@ def read_serial(ser):
                             # Apply hysteresis filter with tighter thresholds for trash2
                             trash2_stable_value, trash2_history = apply_hysteresis_filter(
                                 raw_capacity, trash2_history, trash2_stable_value, "Trash2",
-                                hysteresis_threshold=10, max_jump=18, window_size=5
+                                hysteresis_threshold=3, max_jump=10, window_size=3
                             )
                             
                             trash2_capacity = trash2_stable_value
