@@ -141,7 +141,7 @@ def read_serial(ser):
                 elif data == "login":
                     # Login: set RFID as current user
                     with lock:
-                        if rfid_value:
+                        if rfid_value != "":
                             print(f"User {rfid_value} already logged in.")
                         else:
                             # Wait for next RFID scan
@@ -149,7 +149,7 @@ def read_serial(ser):
                 elif data == "logout":
                     # Logout: clear RFID
                     with lock:
-                        if rfid_value:
+                        if rfid_value != "":
                             print(f"User {rfid_value} logged out.")
                             rfid_value = ""
                         else:
@@ -184,7 +184,7 @@ def read_serial(ser):
                 else:
                     # Assume this is an RFID scan
                     with lock:
-                        if not rfid_value:
+                        if rfid_value == "":
                             rfid_value = data
                             print(f"RFID Read: {rfid_value} (logged in)")
                         else:
