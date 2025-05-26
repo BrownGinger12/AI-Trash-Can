@@ -98,17 +98,14 @@ def read_serial(ser):
                     trash1_capacity = int(fullness.replace("%", ""))
                     if trash1_label:
                         root.after(0, trash1_label.config, {'text': f"Trash Bin 1: {fullness}"})
-                    # Detect throw for bin 1
+                    # Only add points if bin 1 capacity increased (servo already opened after scan)
                     if pending_trash_action and pending_trash_action['bin'] == 1 and trash1_capacity > last_trash1_capacity:
-                        # Add points and trigger servo
                         reward_points = pending_trash_action['points']
                         rfid = pending_trash_action['rfid']
-                        trash_type = pending_trash_action['trash_type']
                         print(f"Throw detected in Bin 1. Adding {reward_points} points.")
                         db_resp = add_points_to_user(rfid, reward_points)
                         if db_resp["statusCode"] == 200:
                             print("Points added!")
-                            ser.write((str(trash_type) + '\n').encode())  # Open servo
                         else:
                             print(f"DB Error: {db_resp['body']}")
                             show_db_error(db_resp['body'])
@@ -119,16 +116,14 @@ def read_serial(ser):
                     trash2_capacity = int(fullness.replace("%", ""))
                     if trash2_label:
                         root.after(0, trash2_label.config, {'text': f"Trash Bin 2: {fullness}"})
-                    # Detect throw for bin 2
+                    # Only add points if bin 2 capacity increased (servo already opened after scan)
                     if pending_trash_action and pending_trash_action['bin'] == 2 and trash2_capacity > last_trash2_capacity:
                         reward_points = pending_trash_action['points']
                         rfid = pending_trash_action['rfid']
-                        trash_type = pending_trash_action['trash_type']
                         print(f"Throw detected in Bin 2. Adding {reward_points} points.")
                         db_resp = add_points_to_user(rfid, reward_points)
                         if db_resp["statusCode"] == 200:
                             print("Points added!")
-                            ser.write((str(trash_type) + '\n').encode())  # Open servo
                         else:
                             print(f"DB Error: {db_resp['body']}")
                             show_db_error(db_resp['body'])
@@ -143,13 +138,29 @@ def read_serial(ser):
                         with lock:
                             is_scan = True
                         print("Garbage detected!")
+                elif data == "login":
+                    # Login: set RFID as current user
+                    with lock:
+                        if rfid_value:
+                            print(f"User {rfid_value} already logged in.")
+                        else:
+                            # Wait for next RFID scan
+                            print("Please scan your RFID to login.")
+                elif data == "logout":
+                    # Logout: clear RFID
+                    with lock:
+                        if rfid_value:
+                            print(f"User {rfid_value} logged out.")
+                            rfid_value = ""
+                        else:
+                            print("No user is currently logged in.")
                 elif data == "reward1":
                     with lock:
                         current_rfid = rfid_value
                     if current_rfid:
                         reward_user(current_rfid, points=-5, reward_type="reward1", reward_name="pen")
                         with lock:
-                            rfid_value = ""
+                            rfid_value = ""  # Logout after redeem
                     else:
                         print("No RFID detected")
                 elif data == "reward2":
@@ -158,7 +169,7 @@ def read_serial(ser):
                     if current_rfid:
                         reward_user(current_rfid, points=-15, reward_type="reward2", reward_name="Highlighter")
                         with lock:
-                            rfid_value = ""
+                            rfid_value = ""  # Logout after redeem
                     else:
                         print("No RFID detected")
                 elif data == "reward3":
@@ -167,13 +178,17 @@ def read_serial(ser):
                     if current_rfid:
                         reward_user(current_rfid, points=-20, reward_type="reward3", reward_name="Marker")
                         with lock:
-                            rfid_value = ""
+                            rfid_value = ""  # Logout after redeem
                     else:
                         print("No RFID detected")   
                 else:
+                    # Assume this is an RFID scan
                     with lock:
-                        rfid_value = data
-                    print(f"RFID Read: {rfid_value}")
+                        if not rfid_value:
+                            rfid_value = data
+                            print(f"RFID Read: {rfid_value} (logged in)")
+                        else:
+                            print(f"RFID {rfid_value} already logged in. Please logout first.")
                 
     except Exception as e:
         print(f"RFID Thread Error: {e}")
@@ -312,6 +327,12 @@ def process_camera(ser):
                         print(f"AI Response: {response}")
 
                         if response and points > 0 and bin_num:
+                            # Open servo immediately after scan and AI identification
+                            try:
+                                ser.write((str(response) + '\n').encode())
+                                print(f"Servo triggered for Bin {bin_num}")
+                            except Exception as e:
+                                print(f"Servo error: {e}")
                             # Store pending action, do NOT add points yet
                             pending_trash_action = {
                                 'rfid': current_rfid,
