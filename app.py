@@ -393,23 +393,11 @@ def process_camera(ser):
                         print(f"AI Response: {response}")
 
                         if response and points > 0 and bin_num:
-                            # --- PAUSE ultrasonic 1s before open, store value ---
+                            # Store initial capacity before servo operation
                             if bin_num == 1:
-                                pause_trash1_ultrasonic = True
+                                before_servo = trash1_capacity
                             else:
-                                pause_trash2_ultrasonic = True
-
-                            time.sleep(1)
-                            if bin_num == 1:
-                                before_open = trash1_capacity
-                            else:
-                                before_open = trash2_capacity
-
-                            # --- RESUME ultrasonic, open servo, store value 1s after open ---
-                            if bin_num == 1:
-                                pause_trash1_ultrasonic = False
-                            else:
-                                pause_trash2_ultrasonic = False
+                                before_servo = trash2_capacity
 
                             try:
                                 ser.write((str(response) + '\n').encode())
@@ -417,52 +405,30 @@ def process_camera(ser):
                             except Exception as e:
                                 print(f"Servo error: {e}")
 
-                            time.sleep(1)
-                            if bin_num == 1:
-                                after_open = trash1_capacity
-                            else:
-                                after_open = trash2_capacity
-
                             # Prompt user to throw trash
                             print("Please throw your trash now.")
                             if output_text:
                                 output_text.after(0, lambda: output_text.insert(tk.END, "\nPlease throw your trash now.\n"))
                                 output_text.after(0, output_text.see, tk.END)
 
-                            # Wait for user to throw (total open time minus 2s already used)
-                            time.sleep(0.5)  # Example: open total 2.5s before close
-
-                            # --- PAUSE ultrasonic 1s before close, store value ---
-                            if bin_num == 1:
-                                pause_trash1_ultrasonic = True
-                            else:
-                                pause_trash2_ultrasonic = True
-
-                            time.sleep(1)
-                            if bin_num == 1:
-                                before_close = trash1_capacity
-                            else:
-                                before_close = trash2_capacity
-
-                            # --- RESUME ultrasonic, close servo, store value 1s after close ---
-                            if bin_num == 1:
-                                pause_trash1_ultrasonic = False
-                            else:
-                                pause_trash2_ultrasonic = False
+                            # Wait for user to throw trash
+                            time.sleep(2.5)  # Give user time to throw trash
 
                             try:
                                 ser.write(b"close\n")
                             except Exception as e:
                                 print(f"Servo close error: {e}")
 
-                            time.sleep(1)
+                            # Wait for servo to close and ultrasonic to stabilize
+                            time.sleep(1.5)
+                            
                             if bin_num == 1:
-                                after_close = trash1_capacity
+                                after_servo = trash1_capacity
                             else:
-                                after_close = trash2_capacity
+                                after_servo = trash2_capacity
 
-                            # --- Compare before_close and after_close ---
-                            if after_close > before_close:
+                            # Compare before and after servo operation
+                            if after_servo > before_servo:
                                 print(f"Throw detected in Bin {bin_num}. Adding {points} points.")
                                 db_resp = add_points_to_user(current_rfid, points)
                                 if db_resp["statusCode"] == 200:
