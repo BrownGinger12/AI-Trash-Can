@@ -280,6 +280,7 @@ def update_camera_error_message(msg):
 
 def process_camera(ser):
     global rfid_value, running, is_scan, trash1_capacity, trash2_capacity, pending_trash_action, scan_button
+    global last_trash1_capacity, last_trash2_capacity
     cap = cv2.VideoCapture(0)
 
     if not cap.isOpened():
@@ -316,6 +317,20 @@ def process_camera(ser):
                     current_rfid = rfid_value
 
                 if current_rfid:
+                    print("Scanning trash... Please wait.")
+                    if output_text:
+                        output_text.after(0, lambda: output_text.insert(tk.END, "\nScanning trash... Please wait.\n"))
+                        output_text.after(0, output_text.see, tk.END)
+                    # Freeze for 3 seconds (show scanning)
+                    scan_start_time = time.time()
+                    while time.time() - scan_start_time < 3 and running:
+                        ret, frame = cap.read()
+                        if ret:
+                            frame = cv2.flip(frame, -1)
+                            frame = cv2.resize(frame, (480, 270))
+                            root.after(0, update_camera_frame, frame)
+                        time.sleep(0.03)
+
                     response = openAi().identify_image(frame)
                     if response:
                         if response == "1":
@@ -331,20 +346,57 @@ def process_camera(ser):
                         print(f"AI Response: {response}")
 
                         if response and points > 0 and bin_num:
-                            # Open servo immediately after scan and AI identification
+                            # Open servo after scan/freeze
                             try:
                                 ser.write((str(response) + '\n').encode())
                                 print(f"Servo triggered for Bin {bin_num}")
                             except Exception as e:
                                 print(f"Servo error: {e}")
-                            # Store pending action, do NOT add points yet
-                            pending_trash_action = {
-                                'rfid': current_rfid,
-                                'trash_type': response,
-                                'points': points,
-                                'bin': bin_num
-                            }
-                            print(f"Waiting for throw in Bin {bin_num}...")
+
+                            # Store initial fullness for this bin
+                            if bin_num == 1:
+                                initial_capacity = trash1_capacity
+                            else:
+                                initial_capacity = trash2_capacity
+
+                            # Wait up to 5 seconds for height change
+                            print("Please throw your trash now.")
+                            if output_text:
+                                output_text.after(0, lambda: output_text.insert(tk.END, "\nPlease throw your trash now.\n"))
+                                output_text.after(0, output_text.see, tk.END)
+                            throw_detected = False
+                            wait_start = time.time()
+                            while time.time() - wait_start < 5 and running:
+                                if bin_num == 1:
+                                    current_capacity = trash1_capacity
+                                else:
+                                    current_capacity = trash2_capacity
+                                if current_capacity > initial_capacity:
+                                    throw_detected = True
+                                    break
+                                time.sleep(0.1)
+
+                            if throw_detected:
+                                print(f"Throw detected in Bin {bin_num}. Adding {points} points.")
+                                db_resp = add_points_to_user(current_rfid, points)
+                                if db_resp["statusCode"] == 200:
+                                    print("Points added!")
+                                    if output_text:
+                                        output_text.after(0, lambda: output_text.insert(tk.END, f"\nPoints added!\n"))
+                                        output_text.after(0, output_text.see, tk.END)
+                                else:
+                                    print(f"DB Error: {db_resp['body']}")
+                                    show_db_error(db_resp['body'])
+                            else:
+                                print("No trash detected. Closing servo.")
+                                if output_text:
+                                    output_text.after(0, lambda: output_text.insert(tk.END, "\nNo trash detected. Closing servo.\n"))
+                                    output_text.after(0, output_text.see, tk.END)
+                            # Close servo after waiting (send close command, e.g., "close\n")
+                            try:
+                                ser.write(b"close\n")
+                            except Exception as e:
+                                print(f"Servo close error: {e}")
                         elif not response:
                             print("Selected trash bin is full")
                         else:
