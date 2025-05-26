@@ -301,12 +301,8 @@ def process_camera(ser):
                 break
 
             # Rotate frame 180 degrees by flipping both horizontally and vertically
-            frame = cv2.flip(frame, -1)  # -1 means flip both horizontally and vertically
-
-            # Resize frame to fit display
+            frame = cv2.flip(frame, -1)
             frame = cv2.resize(frame, (480, 270))
-
-            # Update the frame in the main thread
             root.after(0, update_camera_frame, frame)
 
             with lock:
@@ -321,17 +317,20 @@ def process_camera(ser):
                     if output_text:
                         output_text.after(0, lambda: output_text.insert(tk.END, "\nScanning trash... Please wait.\n"))
                         output_text.after(0, output_text.see, tk.END)
-                    # Freeze for 3 seconds (show scanning)
+                    # Freeze for 3 seconds (show scanning, update camera)
                     scan_start_time = time.time()
+                    last_frame = frame
                     while time.time() - scan_start_time < 3 and running:
                         ret, frame = cap.read()
                         if ret:
                             frame = cv2.flip(frame, -1)
                             frame = cv2.resize(frame, (480, 270))
                             root.after(0, update_camera_frame, frame)
+                            last_frame = frame
                         time.sleep(0.03)
 
-                    response = openAi().identify_image(frame)
+                    # After 3 seconds, stop updating camera and process the last frame
+                    response = openAi().identify_image(last_frame)
                     if response:
                         if response == "1":
                             points = 3
@@ -359,7 +358,7 @@ def process_camera(ser):
                             else:
                                 initial_capacity = trash2_capacity
 
-                            # Wait up to 5 seconds for height change
+                            # Stop updating camera, wait up to 5 seconds for height change
                             print("Please throw your trash now.")
                             if output_text:
                                 output_text.after(0, lambda: output_text.insert(tk.END, "\nPlease throw your trash now.\n"))
@@ -367,6 +366,7 @@ def process_camera(ser):
                             throw_detected = False
                             wait_start = time.time()
                             while time.time() - wait_start < 5 and running:
+                                # Do NOT update camera here, just wait for ultrasonic
                                 if bin_num == 1:
                                     current_capacity = trash1_capacity
                                 else:
