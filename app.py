@@ -217,14 +217,33 @@ def create_fullscreen_camera():
     right_button_frame = tk.Frame(main_frame, bg='black')
     right_button_frame.pack(side='right', fill='y', padx=5, pady=5)
 
-    scan_button = Button(right_button_frame, text="Scan", font=("Arial", 12, "bold"), bg='green', fg='white', padx=10, pady=4,
-                        command=on_scan_button)
-    scan_button.pack(side='top', pady=10, anchor='ne')
+    scan_button = Button(
+        right_button_frame,
+        text="Scan",
+        font=("Arial", 18, "bold"),  # Larger font
+        bg='green',
+        fg='white',
+        padx=24,  # Wider padding
+        pady=18,  # Taller padding
+        height=2,  # Button height in text lines
+        width=8,   # Button width in characters
+        command=on_scan_button
+    )
+    scan_button.pack(side='top', pady=20, anchor='ne')
 
-    close_button = Button(right_button_frame, text="Exit", font=("Arial", 10),
-                         command=lambda: [setattr(sys.modules[__name__], 'running', False), root.destroy()],
-                         bg='red', fg='white', padx=5, pady=2)
-    close_button.pack(side='top', pady=10, anchor='ne')
+    close_button = Button(
+        right_button_frame,
+        text="Exit",
+        font=("Arial", 16),
+        command=lambda: [setattr(sys.modules[__name__], 'running', False), root.destroy()],
+        bg='red',
+        fg='white',
+        padx=18,
+        pady=12,
+        height=2,
+        width=8
+    )
+    close_button.pack(side='top', pady=20, anchor='ne')
 
     # --- VIDEO FRAME ---
     video_frame = tk.Frame(main_frame, bg='black')
