@@ -36,6 +36,12 @@ last_trash2_capacity = 0
 pause_trash1_ultrasonic = False
 pause_trash2_ultrasonic = False
 
+# Add hysteresis variables
+trash1_history = []
+trash2_history = []
+trash1_stable_value = 0
+trash2_stable_value = 0
+
 # Redirect print to label   
 class PrintRedirect(io.StringIO):
     def write(self, s):
@@ -87,11 +93,37 @@ def reward_user(rfid_value, points=0, reward_type="", reward_name=""):
         else:
             print("Not enough points to redeem the reward.")        
 
+def apply_hysteresis_filter(new_value, history, stable_value, bin_name="", hysteresis_threshold=15, max_jump=25, window_size=5):
+    """
+    Apply hysteresis filtering to ultrasonic readings:
+    - Prevents rapid fluctuations by requiring significant change to update
+    - Ignores values that jump too much from the stable value
+    - Uses moving average for smoothing
+    """
+    # Ignore values that jump too much from the stable value (likely noise/interference)
+    if stable_value > 0 and abs(new_value - stable_value) > max_jump:
+        return stable_value, history  # Return current stable value, don't update history
+    
+    # Add new value to history
+    history.append(new_value)
+    if len(history) > window_size:
+        history.pop(0)
+    
+    # Calculate moving average
+    avg_value = sum(history) / len(history)
+    
+    # Apply hysteresis: only change stable value if average differs significantly
+    if abs(avg_value - stable_value) >= hysteresis_threshold:
+        new_stable = int(avg_value)
+        return new_stable, history
+    else:
+        return stable_value, history
 
 def read_serial(ser):
     global rfid_value, running, is_scan, trash1_label, trash2_label, trash1_capacity, trash2_capacity
     global last_trash1_capacity, last_trash2_capacity
     global pause_trash1_ultrasonic, pause_trash2_ultrasonic
+    global trash1_history, trash2_history, trash1_stable_value, trash2_stable_value
     # Remove pending_trash_action logic, as point addition is now handled in process_camera
 
     time.sleep(2)
@@ -105,7 +137,14 @@ def read_serial(ser):
                         if not pause_trash1_ultrasonic:
                             fullness = data.split(":")[1]
                             raw_capacity = int(''.join(filter(str.isdigit, fullness)))
-                            trash1_capacity = raw_capacity
+                            
+                            # Apply hysteresis filter
+                            trash1_stable_value, trash1_history = apply_hysteresis_filter(
+                                raw_capacity, trash1_history, trash1_stable_value, "Trash1",
+                                hysteresis_threshold=12, max_jump=20, window_size=4
+                            )
+                            
+                            trash1_capacity = trash1_stable_value
                             if trash1_label:
                                 root.after(0, trash1_label.config, {'text': f"Trash Bin 1: {trash1_capacity}%"})
                             last_trash1_capacity = trash1_capacity
@@ -116,7 +155,14 @@ def read_serial(ser):
                         if not pause_trash2_ultrasonic:
                             fullness = data.split(":")[1]
                             raw_capacity = int(''.join(filter(str.isdigit, fullness)))
-                            trash2_capacity = raw_capacity
+                            
+                            # Apply hysteresis filter with tighter thresholds for trash2
+                            trash2_stable_value, trash2_history = apply_hysteresis_filter(
+                                raw_capacity, trash2_history, trash2_stable_value, "Trash2",
+                                hysteresis_threshold=10, max_jump=18, window_size=5
+                            )
+                            
+                            trash2_capacity = trash2_stable_value
                             if trash2_label:
                                 root.after(0, trash2_label.config, {'text': f"Trash Bin 2: {trash2_capacity}%"})
                             last_trash2_capacity = trash2_capacity
