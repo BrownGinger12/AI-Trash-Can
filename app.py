@@ -213,24 +213,24 @@ def create_fullscreen_camera():
     main_frame = tk.Frame(root, bg='black')
     main_frame.pack(expand=True, fill='both')
 
-    # --- BUTTONS AT THE TOP ---
-    top_button_frame = tk.Frame(main_frame, bg='black')
-    top_button_frame.pack(fill='x', pady=2, side='top')
+    # --- BUTTONS ON THE RIGHT SIDE ---
+    right_button_frame = tk.Frame(main_frame, bg='black')
+    right_button_frame.pack(side='right', fill='y', padx=5, pady=5)
 
-    scan_button = Button(top_button_frame, text="Scan", font=("Arial", 12, "bold"), bg='green', fg='white', padx=10, pady=4,
+    scan_button = Button(right_button_frame, text="Scan", font=("Arial", 12, "bold"), bg='green', fg='white', padx=10, pady=4,
                         command=on_scan_button)
-    scan_button.pack(side='left', padx=5)
+    scan_button.pack(side='top', pady=10, anchor='ne')
 
-    close_button = Button(top_button_frame, text="Exit", font=("Arial", 10),
+    close_button = Button(right_button_frame, text="Exit", font=("Arial", 10),
                          command=lambda: [setattr(sys.modules[__name__], 'running', False), root.destroy()],
                          bg='red', fg='white', padx=5, pady=2)
-    close_button.pack(side='right', padx=5)
+    close_button.pack(side='top', pady=10, anchor='ne')
 
     # --- VIDEO FRAME ---
     video_frame = tk.Frame(main_frame, bg='black')
-    video_frame.pack(expand=True, padx=5, pady=5)
+    video_frame.pack(expand=True, padx=5, pady=5, fill='both')
     video_label = Label(video_frame, bg='black')
-    video_label.pack(expand=True)
+    video_label.pack(expand=True, fill='both')
 
     # --- TRASH FULLNESS FRAME ---
     trash_frame = tk.Frame(main_frame, bg='black')
