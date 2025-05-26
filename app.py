@@ -252,12 +252,18 @@ def update_camera_frame(frame):
         video_label.config(image=frame_image)
         video_label.image = frame_image  # Keep a reference!
 
+def update_camera_error_message(msg):
+    if output_text:
+        output_text.after(0, lambda: output_text.insert(tk.END, f"\n{msg}\n"))
+        output_text.after(0, output_text.see, tk.END)
+
 def process_camera(ser):
     global rfid_value, running, is_scan, trash1_capacity, trash2_capacity, pending_trash_action, scan_button
     cap = cv2.VideoCapture(0)
 
     if not cap.isOpened():
         print("Error: Could not open webcam.")
+        update_camera_error_message("Error: Could not open webcam. Please check connection.")
         return
 
     # Set camera resolution to match display
@@ -269,6 +275,7 @@ def process_camera(ser):
             ret, frame = cap.read()
             if not ret:
                 print("Error: Failed to capture frame.")
+                update_camera_error_message("Error: Failed to capture frame. Camera disconnected.")
                 break
 
             # Rotate frame 180 degrees by flipping both horizontally and vertically
