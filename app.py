@@ -87,6 +87,10 @@ def reward_user(rfid_value, points=0, reward_type="", reward_name=""):
 def read_serial(ser):
     global rfid_value, running, is_scan, trash1_label, trash2_label, trash1_capacity, trash2_capacity
     global last_trash1_capacity, last_trash2_capacity, pending_trash_action
+
+    # Add rolling history for each bin
+    trash1_history = [0]
+    trash2_history = [0]
     time.sleep(2)
 
     try:
@@ -95,9 +99,14 @@ def read_serial(ser):
                 data = ser.readline().decode('utf-8').strip()
                 if data.startswith("trash1:"):
                     fullness = data.split(":")[1]
-                    trash1_capacity = int(fullness.replace("%", ""))
+                    raw_capacity = int(fullness.replace("%", ""))
+                    # Filter ultrasonic readings
+                    trash1_capacity_filtered = get_filtered_capacity(
+                        raw_capacity, last_trash1_capacity, trash1_history
+                    )
+                    trash1_capacity = trash1_capacity_filtered
                     if trash1_label:
-                        root.after(0, trash1_label.config, {'text': f"Trash Bin 1: {fullness}"})
+                        root.after(0, trash1_label.config, {'text': f"Trash Bin 1: {trash1_capacity}%"})
                     # Only add points if bin 1 capacity increased (servo already opened after scan)
                     if pending_trash_action and pending_trash_action['bin'] == 1 and trash1_capacity > last_trash1_capacity:
                         reward_points = pending_trash_action['points']
@@ -113,9 +122,14 @@ def read_serial(ser):
                     last_trash1_capacity = trash1_capacity
                 elif data.startswith("trash2:"):
                     fullness = data.split(":")[1]
-                    trash2_capacity = int(fullness.replace("%", ""))
+                    raw_capacity = int(fullness.replace("%", ""))
+                    # Filter ultrasonic readings
+                    trash2_capacity_filtered = get_filtered_capacity(
+                        raw_capacity, last_trash2_capacity, trash2_history
+                    )
+                    trash2_capacity = trash2_capacity_filtered
                     if trash2_label:
-                        root.after(0, trash2_label.config, {'text': f"Trash Bin 2: {fullness}"})
+                        root.after(0, trash2_label.config, {'text': f"Trash Bin 2: {trash2_capacity}%"})
                     # Only add points if bin 2 capacity increased (servo already opened after scan)
                     if pending_trash_action and pending_trash_action['bin'] == 2 and trash2_capacity > last_trash2_capacity:
                         reward_points = pending_trash_action['points']
@@ -442,6 +456,25 @@ def show_db_error(msg):
     if output_text:
         output_text.after(0, lambda: output_text.insert(tk.END, f"\nDB Error: {msg}\n"))
         output_text.after(0, output_text.see, tk.END)
+
+# --- Ultrasonic filtering helpers ---
+def get_filtered_capacity(current_capacity, last_capacity, history, threshold=20, window=5):
+    """
+    Smooths ultrasonic readings:
+    - Ignores sudden spikes (likely servo noise)
+    - Returns median of last N readings
+    """
+    # Ignore sudden spikes
+    if abs(current_capacity - last_capacity) > threshold:
+        current_capacity = last_capacity
+    # Maintain a rolling window of readings
+    history.append(current_capacity)
+    if len(history) > window:
+        history.pop(0)
+    # Return median for robustness
+    sorted_hist = sorted(history)
+    median = sorted_hist[len(sorted_hist)//2]
+    return median
 
 if __name__ == "__main__":
     try:
