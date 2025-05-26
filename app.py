@@ -97,15 +97,6 @@ def read_serial(ser):
                     trash2_capacity = int(fullness.replace("%", ""))
                     if trash2_label:
                         root.after(0, trash2_label.config, {'text': f"Trash Bin 2: {fullness}"})
-                elif data == "scan":
-                    # Check if either trash bin is at 100% capacity
-                    if trash1_capacity >= 100 or trash2_capacity >= 100:
-                        print("Cannot scan: One or more trash bins are full!")
-                        ser.write("full\n".encode())
-                    else:
-                        with lock:
-                            is_scan = True
-                        print("Garbage detected!")
                 elif data == "reward1":
                     with lock:
                         current_rfid = rfid_value
@@ -137,6 +128,13 @@ def read_serial(ser):
                     with lock:
                         rfid_value = data
                     print(f"RFID Read: {rfid_value}")
+                    if trash1_capacity >= 100 or trash2_capacity >= 100:
+                        print("Cannot scan: One or more trash bins are full!")
+                        ser.write("full\n".encode())
+                    else:
+                        with lock:
+                            is_scan = True
+                        print("Garbage detected!")
                 
     except Exception as e:
         print(f"RFID Thread Error: {e}")
