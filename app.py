@@ -94,21 +94,27 @@ def read_serial(ser):
     try:
         while running:
             if ser.in_waiting > 0:
-                data = ser.readline().decode('utf-8').strip()
+                data = ser.readline().decode('utf-8', errors='ignore').strip()
                 if data.startswith("trash1:"):
-                    fullness = data.split(":")[1]
-                    raw_capacity = int(fullness.replace("%", ""))
-                    trash1_capacity = raw_capacity  # No smoothing
-                    if trash1_label:
-                        root.after(0, trash1_label.config, {'text': f"Trash Bin 1: {trash1_capacity}%"})
-                    last_trash1_capacity = trash1_capacity
+                    try:
+                        fullness = data.split(":")[1]
+                        raw_capacity = int(''.join(filter(str.isdigit, fullness)))
+                        trash1_capacity = raw_capacity
+                        if trash1_label:
+                            root.after(0, trash1_label.config, {'text': f"Trash Bin 1: {trash1_capacity}%"})
+                        last_trash1_capacity = trash1_capacity
+                    except Exception as e:
+                        print(f"Error parsing trash1 data: '{data}' - {e}")
                 elif data.startswith("trash2:"):
-                    fullness = data.split(":")[1]
-                    raw_capacity = int(fullness.replace("%", ""))
-                    trash2_capacity = raw_capacity  # No smoothing
-                    if trash2_label:
-                        root.after(0, trash2_label.config, {'text': f"Trash Bin 2: {trash2_capacity}%"})
-                    last_trash2_capacity = trash2_capacity
+                    try:
+                        fullness = data.split(":")[1]
+                        raw_capacity = int(''.join(filter(str.isdigit, fullness)))
+                        trash2_capacity = raw_capacity
+                        if trash2_label:
+                            root.after(0, trash2_label.config, {'text': f"Trash Bin 2: {trash2_capacity}%"})
+                        last_trash2_capacity = trash2_capacity
+                    except Exception as e:
+                        print(f"Error parsing trash2 data: '{data}' - {e}")
                 elif data == "scan":
                     # Check if either trash bin is at 100% capacity
                     if trash1_capacity >= 100 or trash2_capacity >= 100:
