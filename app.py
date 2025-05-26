@@ -89,9 +89,6 @@ def read_serial(ser):
     global last_trash1_capacity, last_trash2_capacity
     # Remove pending_trash_action logic, as point addition is now handled in process_camera
 
-    # Add rolling history for each bin
-    trash1_history = [0]
-    trash2_history = [0]
     time.sleep(2)
 
     try:
@@ -101,22 +98,14 @@ def read_serial(ser):
                 if data.startswith("trash1:"):
                     fullness = data.split(":")[1]
                     raw_capacity = int(fullness.replace("%", ""))
-                    # Filter ultrasonic readings
-                    trash1_capacity_filtered = get_filtered_capacity(
-                        raw_capacity, last_trash1_capacity, trash1_history
-                    )
-                    trash1_capacity = trash1_capacity_filtered
+                    trash1_capacity = raw_capacity  # No smoothing
                     if trash1_label:
                         root.after(0, trash1_label.config, {'text': f"Trash Bin 1: {trash1_capacity}%"})
                     last_trash1_capacity = trash1_capacity
                 elif data.startswith("trash2:"):
                     fullness = data.split(":")[1]
                     raw_capacity = int(fullness.replace("%", ""))
-                    # Filter ultrasonic readings
-                    trash2_capacity_filtered = get_filtered_capacity(
-                        raw_capacity, last_trash2_capacity, trash2_history
-                    )
-                    trash2_capacity = trash2_capacity_filtered
+                    trash2_capacity = raw_capacity  # No smoothing
                     if trash2_label:
                         root.after(0, trash2_label.config, {'text': f"Trash Bin 2: {trash2_capacity}%"})
                     last_trash2_capacity = trash2_capacity
