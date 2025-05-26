@@ -32,6 +32,10 @@ pending_trash_action = None  # {'rfid': ..., 'trash_type': ..., 'points': ..., '
 last_trash1_capacity = 0
 last_trash2_capacity = 0
 
+# Add these globals after other globals
+pause_trash1_ultrasonic = False
+pause_trash2_ultrasonic = False
+
 # Redirect print to label   
 class PrintRedirect(io.StringIO):
     def write(self, s):
@@ -87,6 +91,7 @@ def reward_user(rfid_value, points=0, reward_type="", reward_name=""):
 def read_serial(ser):
     global rfid_value, running, is_scan, trash1_label, trash2_label, trash1_capacity, trash2_capacity
     global last_trash1_capacity, last_trash2_capacity
+    global pause_trash1_ultrasonic, pause_trash2_ultrasonic
     # Remove pending_trash_action logic, as point addition is now handled in process_camera
 
     time.sleep(2)
@@ -97,22 +102,24 @@ def read_serial(ser):
                 data = ser.readline().decode('utf-8', errors='ignore').strip()
                 if data.startswith("trash1:"):
                     try:
-                        fullness = data.split(":")[1]
-                        raw_capacity = int(''.join(filter(str.isdigit, fullness)))
-                        trash1_capacity = raw_capacity
-                        if trash1_label:
-                            root.after(0, trash1_label.config, {'text': f"Trash Bin 1: {trash1_capacity}%"})
-                        last_trash1_capacity = trash1_capacity
+                        if not pause_trash1_ultrasonic:
+                            fullness = data.split(":")[1]
+                            raw_capacity = int(''.join(filter(str.isdigit, fullness)))
+                            trash1_capacity = raw_capacity
+                            if trash1_label:
+                                root.after(0, trash1_label.config, {'text': f"Trash Bin 1: {trash1_capacity}%"})
+                            last_trash1_capacity = trash1_capacity
                     except Exception as e:
                         print(f"Error parsing trash1 data: '{data}' - {e}")
                 elif data.startswith("trash2:"):
                     try:
-                        fullness = data.split(":")[1]
-                        raw_capacity = int(''.join(filter(str.isdigit, fullness)))
-                        trash2_capacity = raw_capacity
-                        if trash2_label:
-                            root.after(0, trash2_label.config, {'text': f"Trash Bin 2: {trash2_capacity}%"})
-                        last_trash2_capacity = trash2_capacity
+                        if not pause_trash2_ultrasonic:
+                            fullness = data.split(":")[1]
+                            raw_capacity = int(''.join(filter(str.isdigit, fullness)))
+                            trash2_capacity = raw_capacity
+                            if trash2_label:
+                                root.after(0, trash2_label.config, {'text': f"Trash Bin 2: {trash2_capacity}%"})
+                            last_trash2_capacity = trash2_capacity
                     except Exception as e:
                         print(f"Error parsing trash2 data: '{data}' - {e}")
                 elif data == "scan":
@@ -276,6 +283,7 @@ def update_camera_error_message(msg):
 def process_camera(ser):
     global rfid_value, running, is_scan, trash1_capacity, trash2_capacity, scan_button
     global last_trash1_capacity, last_trash2_capacity
+    global pause_trash1_ultrasonic, pause_trash2_ultrasonic
     cap = cv2.VideoCapture(0)
 
     if not cap.isOpened():
@@ -340,6 +348,15 @@ def process_camera(ser):
                         print(f"AI Response: {response}")
 
                         if response and points > 0 and bin_num:
+                            # --- PAUSE ultrasonic updates for this bin ---
+                            if bin_num == 1:
+                                pause_trash1_ultrasonic = True
+                            else:
+                                pause_trash2_ultrasonic = True
+
+                            # Wait 1 second before opening servo (freeze ultrasonic)
+                            time.sleep(1)
+
                             # Open servo after scan/freeze
                             try:
                                 ser.write((str(response) + '\n').encode())
@@ -359,8 +376,16 @@ def process_camera(ser):
                                 output_text.after(0, lambda: output_text.insert(tk.END, "\nPlease throw your trash now.\n"))
                                 output_text.after(0, output_text.see, tk.END)
 
-                            # Wait for user to throw trash (servo open), then close servo
-                            time.sleep(2)  # Wait for user to throw and servo to close
+                            # Wait for user to throw trash (servo open), then unpause ultrasonic 0.5s before closing
+                            time.sleep(1.5)  # 2s total open time, so 0.5s left
+
+                            # --- UNPAUSE ultrasonic updates for this bin ---
+                            if bin_num == 1:
+                                pause_trash1_ultrasonic = False
+                            else:
+                                pause_trash2_ultrasonic = False
+
+                            time.sleep(0.5)  # Remaining 0.5s before closing
 
                             # Close servo after waiting (send close command, e.g., "close\n")
                             try:
