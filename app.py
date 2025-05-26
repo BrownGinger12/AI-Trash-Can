@@ -86,7 +86,8 @@ def reward_user(rfid_value, points=0, reward_type="", reward_name=""):
 
 def read_serial(ser):
     global rfid_value, running, is_scan, trash1_label, trash2_label, trash1_capacity, trash2_capacity
-    global last_trash1_capacity, last_trash2_capacity, pending_trash_action
+    global last_trash1_capacity, last_trash2_capacity
+    # Remove pending_trash_action logic, as point addition is now handled in process_camera
 
     # Add rolling history for each bin
     trash1_history = [0]
@@ -107,18 +108,6 @@ def read_serial(ser):
                     trash1_capacity = trash1_capacity_filtered
                     if trash1_label:
                         root.after(0, trash1_label.config, {'text': f"Trash Bin 1: {trash1_capacity}%"})
-                    # Only add points if bin 1 capacity increased (servo already opened after scan)
-                    if pending_trash_action and pending_trash_action['bin'] == 1 and trash1_capacity > last_trash1_capacity:
-                        reward_points = pending_trash_action['points']
-                        rfid = pending_trash_action['rfid']
-                        print(f"Throw detected in Bin 1. Adding {reward_points} points.")
-                        db_resp = add_points_to_user(rfid, reward_points)
-                        if db_resp["statusCode"] == 200:
-                            print("Points added!")
-                        else:
-                            print(f"DB Error: {db_resp['body']}")
-                            show_db_error(db_resp['body'])
-                        pending_trash_action = None
                     last_trash1_capacity = trash1_capacity
                 elif data.startswith("trash2:"):
                     fullness = data.split(":")[1]
@@ -130,18 +119,6 @@ def read_serial(ser):
                     trash2_capacity = trash2_capacity_filtered
                     if trash2_label:
                         root.after(0, trash2_label.config, {'text': f"Trash Bin 2: {trash2_capacity}%"})
-                    # Only add points if bin 2 capacity increased (servo already opened after scan)
-                    if pending_trash_action and pending_trash_action['bin'] == 2 and trash2_capacity > last_trash2_capacity:
-                        reward_points = pending_trash_action['points']
-                        rfid = pending_trash_action['rfid']
-                        print(f"Throw detected in Bin 2. Adding {reward_points} points.")
-                        db_resp = add_points_to_user(rfid, reward_points)
-                        if db_resp["statusCode"] == 200:
-                            print("Points added!")
-                        else:
-                            print(f"DB Error: {db_resp['body']}")
-                            show_db_error(db_resp['body'])
-                        pending_trash_action = None
                     last_trash2_capacity = trash2_capacity
                 elif data == "scan":
                     # Check if either trash bin is at 100% capacity
@@ -302,7 +279,7 @@ def update_camera_error_message(msg):
         output_text.after(0, output_text.see, tk.END)
 
 def process_camera(ser):
-    global rfid_value, running, is_scan, trash1_capacity, trash2_capacity, pending_trash_action, scan_button
+    global rfid_value, running, is_scan, trash1_capacity, trash2_capacity, scan_button
     global last_trash1_capacity, last_trash2_capacity
     cap = cv2.VideoCapture(0)
 
@@ -381,25 +358,31 @@ def process_camera(ser):
                             else:
                                 initial_capacity = trash2_capacity
 
-                            # Stop updating camera, wait up to 5 seconds for height change
+                            # Prompt user to throw trash
                             print("Please throw your trash now.")
                             if output_text:
                                 output_text.after(0, lambda: output_text.insert(tk.END, "\nPlease throw your trash now.\n"))
                                 output_text.after(0, output_text.see, tk.END)
-                            throw_detected = False
-                            wait_start = time.time()
-                            while time.time() - wait_start < 5 and running:
-                                # Do NOT update camera here, just wait for ultrasonic
-                                if bin_num == 1:
-                                    current_capacity = trash1_capacity
-                                else:
-                                    current_capacity = trash2_capacity
-                                if current_capacity > initial_capacity:
-                                    throw_detected = True
-                                    break
-                                time.sleep(0.1)
 
-                            if throw_detected:
+                            # Wait for user to throw trash (servo open), then close servo
+                            time.sleep(2)  # Wait for user to throw and servo to close
+
+                            # Close servo after waiting (send close command, e.g., "close\n")
+                            try:
+                                ser.write(b"close\n")
+                            except Exception as e:
+                                print(f"Servo close error: {e}")
+
+                            # Wait 2 seconds after servo closes before checking ultrasonic
+                            time.sleep(2)
+
+                            # Check if bin capacity increased
+                            if bin_num == 1:
+                                new_capacity = trash1_capacity
+                            else:
+                                new_capacity = trash2_capacity
+
+                            if new_capacity > initial_capacity:
                                 print(f"Throw detected in Bin {bin_num}. Adding {points} points.")
                                 db_resp = add_points_to_user(current_rfid, points)
                                 if db_resp["statusCode"] == 200:
@@ -411,15 +394,10 @@ def process_camera(ser):
                                     print(f"DB Error: {db_resp['body']}")
                                     show_db_error(db_resp['body'])
                             else:
-                                print("No trash detected. Closing servo.")
+                                print("No trash detected after servo closed. No points added.")
                                 if output_text:
-                                    output_text.after(0, lambda: output_text.insert(tk.END, "\nNo trash detected. Closing servo.\n"))
+                                    output_text.after(0, lambda: output_text.insert(tk.END, "\nNo trash detected after servo closed. No points added.\n"))
                                     output_text.after(0, output_text.see, tk.END)
-                            # Close servo after waiting (send close command, e.g., "close\n")
-                            try:
-                                ser.write(b"close\n")
-                            except Exception as e:
-                                print(f"Servo close error: {e}")
                         elif not response:
                             print("Selected trash bin is full")
                         else:
